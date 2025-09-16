@@ -1,11 +1,6 @@
-"use client";
-
-import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 export default function Home() {
-  const { isSignedIn } = useUser();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -17,19 +12,6 @@ export default function Home() {
           <p className="text-xl text-center text-gray-600 dark:text-gray-300">
             Upload your documents and get AI-powered analysis, summaries, and answers to your questions.
           </p>
-
-          {!isSignedIn && (
-            <div className="flex justify-center gap-4">
-              <SignUpButton mode="modal">
-                <Button >Sign Up</Button>
-              </SignUpButton>
-
-              <SignInButton mode="modal">
-                <Button variant="outline">Sign In</Button>
-              </SignInButton>
-            </div>
-          )}
-
           <div className="text-center">
             <Link
               href="/dashboard"

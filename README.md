@@ -14,7 +14,6 @@ AI Knowledge Assistant is a web application built with **Next.js**, **Tailwind C
   - Role-based responses (e.g., professor, expert).
   - Control hallucinations (e.g., "If the answer is not found, respond with 'Not found in the document'").
 - **Session Management**: Maintain context across interactions using LangChain.
-- **Authentication**: Secure user authentication with Clerk.
 - **Responsive Design**: Modern and user-friendly interface built with Tailwind CSS and shadcn/ui.
 
 ---
@@ -26,7 +25,6 @@ Ensure you have the following installed:
 - **Node.js** (v18 or higher)
 - **npm** (v9 or higher) or **yarn**
 - **OpenAI API Key**: Sign up at [OpenAI](https://platform.openai.com/signup/) to get your API key.
-- **Clerk API Keys**: Sign up at [Clerk](https://clerk.dev/) to configure authentication.
 
 ---
 
@@ -48,11 +46,6 @@ Ensure you have the following installed:
 3. **Set Up Environment Variables**:
    Create a `.env.local` file in the root directory and add the following:
    ```env
-    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your-clerk-api-key
-    CLERK_SECRET_KEY=your-clerk-api-secret
-    NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-    NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-    
     OPENAI_API_KEY=your-openai-api-key
     
     AI_MODEL=gpt-4-1106-preview
@@ -77,7 +70,7 @@ Ensure you have the following installed:
 ```plaintext
 src/
 ├── app/
-│   ├── layout.tsx          # Root layout with ClerkProvider
+│   ├── layout.tsx          # Root layout
 │   ├── page.tsx            # Home page
 │   ├── dashboard/          # Dashboard for document analysis
 │   │   ├── page.tsx        # Main dashboard page
@@ -91,7 +84,6 @@ src/
 │   ├── ui/button.tsx        # Reusable button component
 │   ├── header.tsx           # Header component
 │   ├── theme-provider.tsx   # Theme provider for Tailwind
-│   ├── clerk-provider.tsx   # Clerk authentication provider
 ├── lib/
 │   ├── session.ts           # Session management utilities
 │   ├── text.ts              # Text processing utilities
@@ -107,17 +99,11 @@ src/
 
 ## **Usage**
 
-### **1. Authentication**
-- Sign up or log in using Clerk authentication.
-> ⚠️ **Development Notice:**  
-> Route protection is currently **not activated** on any route for development purposes. Please ensure to enable authentication checks before deploying to production.  
-> You can review or modify the middleware responsible for route protection in [`src/middleware.ts`](src/middleware.ts).
-
-### **2. Upload a Document**
+### **1. Upload a Document**
 - Navigate to the **Dashboard**.
 - Upload a PDF, TXT, or DOCX file using the **Document Uploader**.
 
-### **3. Interact with the Document**
+### **2. Interact with the Document**
 - Use the chat interface to:
   - Ask questions about the document.
   - Request a summary or explanation.
@@ -172,7 +158,6 @@ For inquiries, contact: [guillermo.blanco.martinez@gmail.com](mailto:guillermo.b
 ## **Acknowledgments**
 - **Next.js**: For the framework.
 - **OpenAI**: For the GPT API.
-- **Clerk**: For authentication.
 - **Tailwind CSS**: For styling.
 - **shadcn/ui**: For UI components.
 - **LangChain**: For context management.

@@ -1,5 +1,3 @@
-import { Button } from '@/components/ui/button'
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import Link from 'next/link'
 
 export function Header() {
@@ -14,19 +12,6 @@ export function Header() {
         </svg>
         <span className="font-semibold">Acme Co.</span>
       </Link>
-      <div className="flex items-center gap-x-4">
-        <SignedOut>
-          <SignInButton>
-            <Button variant="ghost">Sign in</Button>
-          </SignInButton>
-          <SignUpButton>
-            <Button>Sign up</Button>
-          </SignUpButton>
-        </SignedOut>
-        <SignedIn>
-          <UserButton />
-        </SignedIn>
-      </div>
     </header>
   )
 }
