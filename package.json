@@ -18,6 +18,7 @@
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "compute-cosine-similarity": "^1.1.0",
     "formidable": "^3.5.4",
     "langchain": "^0.3.33",
     "lucide-react": "^0.543.0",
@@ -30,6 +31,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "shadcn-ui": "^0.9.5",
+    "sqlite3": "^5.1.7",
     "typescript": "^5.9.2",
     "uploadthing": "^7.7.4",
     "zod": "^3.25.76"

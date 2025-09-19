@@ -3,6 +3,7 @@ import { createRouter } from "next-connect";
 
 import { OpenAI } from "openai";
 import { getSessionContext, updateSessionContext } from "@/lib/session";
+import { searchEmbeddings } from '@/lib/search';
 
 const router = createRouter<NextApiRequest, NextApiResponse>();
 
@@ -22,26 +23,49 @@ router.post(async (req, res) => {
 
     const sessionContext = await getSessionContext(sessionId);
 
-    const response = await client.chat.completions.create({
-        model: AI_MODEL,
-        messages: [
-            ...sessionContext,
-            {
-                role: "user",
-                content: userMessage,
-            }
-        ],
-        temperature: 0.2
+    // Generate embedding for the user message
+    const embeddingResponse = await client.embeddings.create({
+        model: 'text-embedding-ada-002',
+        input: userMessage,
     });
 
-    const systemResponse = response.choices[0].message.content || 'No response';
+    const userEmbedding = embeddingResponse.data[0].embedding;
 
-    await updateSessionContext(sessionId, [
-        { role: "user", content: userMessage },
-        { role: "system", content: systemResponse }
-    ]);
+    // Search for relevant embeddings in the database
+    return searchEmbeddings(userEmbedding, async (err: Error | null, results: Array<{ text: string }>) => {
+        if (err) {
+            console.error('Error searching embeddings:', err);
+            return res.status(500).json({ error: 'Error searching embeddings' });
+        }
 
-    res.status(200).json(systemResponse);
+        // Extract top relevant context
+        const topContext = results.slice(0, 3).map(result => result.text).join('\n\n');
+
+        const response = await client.chat.completions.create({
+            model: AI_MODEL,
+            messages: [
+                ...sessionContext,
+                {
+                    role: "system",
+                    content: topContext ? `Relevant context:\n\n${topContext}` : 'No relevant context found.',
+                },
+                {
+                    role: "user",
+                    content: userMessage,
+                }
+            ],
+            temperature: 0.2
+        });
+
+        const systemResponse = response.choices[0].message.content || 'No response';
+
+        await updateSessionContext(sessionId, [
+            { role: "user", content: userMessage },
+            { role: "system", content: systemResponse }
+        ]);
+
+        res.status(200).json(systemResponse);
+    });
 });
 
 const apiRoute = router.handler({
