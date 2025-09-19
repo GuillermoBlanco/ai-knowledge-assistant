@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 export interface Message {
     sender: "user" | "system";
     text: string;
+    images?: { url?: string, b64_json?: string }[];
     isTemporary?: boolean;
 }
 
@@ -37,28 +38,39 @@ export default function ChatConversation({ messages, setMessages, sendMessage }:
             const systemMessage: Message = { sender: "system", text: result };
             setMessages((prev: Message[]) => [...prev.filter((message) => !message.isTemporary), systemMessage]);
             setLoading(false);
-        });
+        }).catch(() => {
+            setMessages((prev: Message[]) => [...prev.filter((message) => !message.isTemporary), { sender: "system", text: "Failed to get response. Please try again.", isTemporary: true }]);
+        }).finally(() => setLoading(false)
+        );
 
     };
 
     return (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((message, index) => (
-                    <div
-                        key={index}
-                        className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-                    >
+                {messages.map((message, index) => {
+                    const images = message.images ? message.images.map(({ url, b64_json }, idx) => (
+                        url ? <img key={idx} src={url} alt={`Generated ${idx}`} className="mt-2 max-w-full rounded" /> :
+                            <img key={idx} src={`data:image/png;base64,${b64_json}`} alt={`Generated ${idx}`} className="mt-2 max-w-full rounded" />
+                    )) : null;
+
+                    return (
                         <div
-                            className={`p-3 rounded-lg max-w-xs ${message.sender === "user"
-                                ? "bg-blue-500 text-white"
-                                : "bg-gray-200 text-gray-800"
-                                }`}
+                            key={index}
+                            className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
                         >
-                            {message.text}
+                            <div
+                                className={`p-3 rounded-lg max-w-xs ${message.sender === "user"
+                                    ? "bg-blue-500 text-white"
+                                    : "bg-gray-200 text-gray-800"
+                                    }`}
+                            >
+                                {message.text}
+                            </div>
+                            {images && <div className="ml-4">{images}</div>}
                         </div>
-                    </div>
-                ))}
+                    )
+                })}
             </div>
             <div className="p-4 border-t border-gray-300 flex items-center">
                 <input

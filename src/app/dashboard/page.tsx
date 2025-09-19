@@ -58,15 +58,15 @@ export default function DashboardPage() {
         }).then(res => res.json()).then(result => {
             setMessages((prev: Message[]) => [
                 ...prev.filter((message) => !message.isTemporary),
-                ...((result.summaries as { summary: string }[]).map((item) => ({
-                    sender: "system" as Message['sender'], text: item.summary,
+                ...((result.summaries as { summary: string, images: { url?: string, b64_json?: string }[] }[]).map((item) => ({
+                    sender: "system" as Message['sender'], text: item.summary, images: item.images,
                 }))),
             ]);
             return result;
         }).catch(err => {
             setMessages((prev: Message[]) => [
                 ...prev.filter((message) => !message.isTemporary),
-                { sender: "system", text: `File processing error: Try again \n\n ${err}` },
+                { sender: "system", text: `File processing error: Try again \n\n ${err}`, isTemporary: true },
             ]);
             console.error("Error uploading file:", err);
         });

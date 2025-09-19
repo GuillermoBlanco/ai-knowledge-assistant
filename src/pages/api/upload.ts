@@ -7,6 +7,7 @@ import formidable from 'formidable'
 
 import { updateSessionContext } from "@/lib/session";
 import { extractFileText, splitFileContent } from "@/lib/text";
+import { insertEmbedding } from '@/lib/embeddings';
 
 interface NextApiRequestWithFiles extends NextApiRequest {
     fields?: { sessionId?: string | Array<string> | undefined, extractedText?: string };
@@ -40,6 +41,27 @@ const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: Next
     });
 };
 
+const generateAndStoreEmbeddings = async (text: string) => {
+    try {
+        const response = await client.embeddings.create({
+            model: 'text-embedding-ada-002',
+            input: text,
+        });
+
+        const embedding = response.data[0].embedding;
+
+        insertEmbedding(text, embedding, (err: string) => {
+            if (err) {
+                console.error('Error inserting embedding into database:', err);
+            } else {
+                console.log('Embedding successfully stored in database.');
+            }
+        });
+    } catch (error) {
+        console.error('Error generating embeddings:', error);
+    }
+};
+
 const summarizeChunksMiddleWare = async (req: NextApiRequestWithFiles, res: NextApiResponse, next: (arg0: string | null) => void) => {
 
     const systemPrompt: { role: "system" | "user", content: string } = {
@@ -52,45 +74,77 @@ const summarizeChunksMiddleWare = async (req: NextApiRequestWithFiles, res: Next
 
     const chunks = await splitFileContent(extractedText) || [];
 
-    const summaries = [];
-    for (let i = 0; i < chunks.length; i++) {
+    const summaries: Array<{ chunk: number, summary: string | null, images?: Array<{ url?: string, base64_json?: string }> }> = [];
+    await Promise.all(
+        chunks.map(async (chunkText, i) => {
+            try {
+                const response = await client.chat.completions.create({
+                    model: AI_MODEL,
+                    messages: [
+                        systemPrompt,
+                        {
+                            role: "user",
+                            content: `Parte ${i + 1} del documento:\n\n${chunkText}\n\nHaz un resumen en 5 viñetas utilizando emojis para resaltar importante.`
+                        }
+                    ],
+                    temperature: 0.2
+                }).catch(err => {
+                    console.error('Error generating summary:', err);
+                    return { choices: [{ message: { content: 'Error generating summary' } }] };
+                });
 
-        const response = await client.chat.completions.create({
-            model: AI_MODEL,
-            messages: [
-                systemPrompt,
-                {
-                    role: "user",
-                    content: `Parte ${i + 1} del documento:\n\n${chunks[i]}\n\nHaz un resumen en 5 viñetas.`
+                const imagesResponse = await client.images.generate({
+                    model: "gpt-image-1",
+                    prompt: `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${response.choices[0].message.content}`,
+                    n: 1,
+                    size: "1024x1024",
+                }).then((imageRes) => {
+                    const image64 = imageRes?.data && imageRes?.data[0]?.b64_json;
+                    if (!image64) throw new Error('No image generated');
+                    return { data: [{ b64_json: image64, url: undefined }] };
+                }).catch(err => {
+                    console.error('Error generating image:', err);
+                    return { data: [{ url: undefined, b64_json: undefined }] };
+                });
+
+
+                const summary = response.choices[0].message.content;
+                summaries.push({
+                    chunk: i + 1,
+                    summary,
+                    ...(imagesResponse.data?.length
+                        ? {
+                            images: imagesResponse.data.map(img => img).filter(
+                                (img: { url?: string, b64_json?: string }) =>
+                                    typeof img.url === 'string' || typeof img.b64_json === 'string'
+                            )
+                        }
+                        : {})
+                });
+
+                // Store embeddings for the chunk
+                await generateAndStoreEmbeddings(chunkText);
+
+                const sessionIdRaw = req.fields?.sessionId;
+                const sessionId = Array.isArray(sessionIdRaw)
+                    ? sessionIdRaw[0]
+                    : sessionIdRaw ?? '';
+                if (sessionId) {
+                    await updateSessionContext(sessionId, [
+                        ...((i === 0) ? [systemPrompt] : []),
+                        {
+                            role: "user",
+                            content: `Parte ${i + 1} del documento:\n\n${chunkText}\n\nHaz un resumen en 5 viñetas.`
+                        },
+                        { role: "system", content: summary || ' ' }
+                    ]);
                 }
-            ],
-            temperature: 0.2
-        }).catch(err => {
-            console.error('Error generating summary:', err);
-            return { choices: [{ message: { content: 'Error generating summary' } }] };
-        });
 
-        summaries.push({
-            chunk: i + 1,
-            summary: response.choices[0].message.content
-        });
-
-        const sessionIdRaw = req.fields?.sessionId;
-        const sessionId = Array.isArray(sessionIdRaw)
-            ? sessionIdRaw[0]
-            : sessionIdRaw ?? '';
-        if (sessionId) summaries.map(async ({ chunk, summary }) => {
-            await updateSessionContext(sessionId, [
-                ...((chunk === 1) ? [systemPrompt] : []),
-                {
-                    role: "user",
-                    content: `Parte ${chunk} del documento:\n\n${chunks[chunk - 1]}\n\nHaz un resumen en 5 viñetas.`
-                },
-                { role: "system", content: summary || ' ' }
-            ]);
+            } catch (error) {
+                console.error(`Error processing chunk ${i + 1}:`, error);
+            }
         })
-    }
-
+    );
     res.json({ summaries });
 
     next(null);
