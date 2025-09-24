@@ -1,19 +1,23 @@
 # AI Knowledge Assistant
 
-AI Knowledge Assistant is a web application built with **Next.js**, **Tailwind CSS**, **shadcn/ui**, and **LangChain**. It allows users to upload documents (PDF, TXT, or DOCX) and interact with them using AI-powered tools like **OpenAI's GPT-4**. The application provides features such as summarization, explanation, and Q&A about the uploaded documents.
+AI Knowledge Assistant is a web application built with **Next.js**, **Tailwind CSS**, **shadcn/ui**, and **LangChain**. It allows users to upload documents (PDF, TXT, or DOCX) and interact with them using AI-powered tools like **OpenAI's GPT-4o**. The application provides features such as summarization, explanation, and Q&A about the uploaded documents.
 
 ---
 
 ## **Features**
 - **Document Upload**: Upload PDF, TXT, or DOCX files for analysis.
-- **AI-Powered Analysis**: Use OpenAI to:
+- **AI-Powered Analysis**: Uses OpenAI via LangChain to:
   - Summarize documents.
   - Explain complex concepts.
   - Answer questions about the document.
+- **Modern LangChain Pipeline**:
+  - Chat model: `ChatOpenAI` with LCEL chain (prompt → model → parser).
+  - In-session vector store with `OpenAIEmbeddings` + `MemoryVectorStore`.
+  - Clear behavior: “If not in the context, say 'No encontrado en el documento'”.
 - **Advanced Prompt Engineering**:
   - Role-based responses (e.g., professor, expert).
   - Control hallucinations (e.g., "If the answer is not found, respond with 'Not found in the document'").
-- **Session Management**: Maintain context across interactions using LangChain.
+- **Session Management**: Maintain context across interactions using LangChain and a per-session retriever.
 - **Responsive Design**: Modern and user-friendly interface built with Tailwind CSS and shadcn/ui.
 
 ---
@@ -161,3 +165,31 @@ For inquiries, contact: [guillermo.blanco.martinez@gmail.com](mailto:guillermo.b
 - **Tailwind CSS**: For styling.
 - **shadcn/ui**: For UI components.
 - **LangChain**: For context management.
+
+---
+
+## LangChain Architecture
+
+- Ingestion (upload API)
+  - Extract text from PDF/TXT/DOCX, split into chunks (`CharacterTextSplitter`).
+  - Embed and index chunks per session using `OpenAIEmbeddings` and `MemoryVectorStore` (`src/lib/vectorstore.ts`).
+  - Summarize each chunk with `ChatOpenAI` using a constrained prompt.
+
+- Retrieval QA (message API)
+  - Build a retriever from the session store with top-k relevant docs.
+  - LCEL chain: `{ context: retriever | formatDocumentsAsString, question } → ChatPromptTemplate → ChatOpenAI → StringOutputParser`.
+  - Enforces: answer only from provided context or say “No encontrado en el documento”.
+
+---
+
+## Sources and Best Practices
+
+- LangChain JS docs (LCEL, chains, retrievers)
+  - https://js.langchain.com/docs/expression_language
+  - https://js.langchain.com/docs/how_to#retrieval-augmented-generation
+  - https://js.langchain.com/docs/integrations/chat/openai
+  - https://js.langchain.com/docs/integrations/text_embedding/openai
+- RAG guidance
+  - https://www.promptingguide.ai/techniques/rag
+- OpenAI API models
+  - https://platform.openai.com/docs/models
