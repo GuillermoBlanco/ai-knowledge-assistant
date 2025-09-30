@@ -4,5 +4,7 @@ declare namespace NodeJS {
         AI_MODEL: string;
         AI_MODEL_TURBO: string;
         AI_MODEL_MINI: string;
+        MODEL_SERVER: string;
+        EMBEDDING_MODEL: string;
     }
 }

@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { parse } from 'cookie';
 import { createRouter } from "next-connect";
 
 import { addTextsToSession, getSessionRetriever } from "@/lib/vectorstore";
@@ -8,18 +9,24 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
 import { formatDocumentsAsString } from "langchain/util/document";
 
+const AI_MODEL = process.env.AI_MODEL_MINI || 'gpt-4o-mini';
+const isDevMode = process.env.NODE_ENV !== "production";
+const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
+
 const router = createRouter<NextApiRequest, NextApiResponse>();
 
-const AI_MODEL = process.env.AI_MODEL_MINI || 'gpt-4o-mini';
 const model = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: AI_MODEL,
     temperature: 0.2,
+    ...isDevMode && { configuration: developmentConfiguration },
 });
 
-
 router.post(async (req, res) => {
-    const sessionId = req.headers.sessionid as string;
+    const cookieHeader = req.headers.cookie || '';
+    const cookies = parse(cookieHeader);
+    const sessionId = cookies.sid;
+
     const userMessage = req.body;
 
     if (!sessionId || !userMessage) {

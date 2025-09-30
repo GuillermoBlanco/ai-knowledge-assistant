@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { parse } from 'cookie';
 import { createRouter } from "next-connect";
 import formidable from "formidable";
 import { OpenAI } from "openai";
@@ -12,9 +13,17 @@ interface NextApiRequestWithFiles extends NextApiRequest {
     files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
 }
 
+const isDevMode = process.env.NODE_ENV !== "production";
+const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 const AI_MODEL = process.env.AI_MODEL_MINI || "gpt-4.1-mini";
+
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const chatModel = new ChatOpenAI({ apiKey: process.env.OPENAI_API_KEY, model: AI_MODEL, temperature: 0.2 });
+const chatModel = new ChatOpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    model: AI_MODEL,
+    ...isDevMode && { configuration: developmentConfiguration },
+    temperature: 0.2
+});
 
 const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
 
@@ -46,15 +55,15 @@ const summarizeChunksMiddleWare = async (
     res: NextApiResponse,
     next: (arg0: string | null) => void
 ) => {
+    type ImageData = { url?: string; b64_json?: string };
+    type ChunkResult = {
+        chunk: number;
+        summary: string | null;
+        images?: ImageData[];
+    };
 
     const extractedText = req.fields?.extractedText || "";
     const chunks = (await splitFileContent(extractedText)) || [];
-
-    const summaries: Array<{
-        chunk: number;
-        summary: string | null;
-        images?: Array<{ url?: string; base64_json?: string }>;
-    }> = [];
 
     const summaryPrompt = ChatPromptTemplate.fromMessages([
         [
@@ -67,56 +76,81 @@ const summarizeChunksMiddleWare = async (
         ],
     ]);
 
-    await Promise.all(
-        chunks.map(async (chunkText, i) => {
+
+    async function processChunk(
+        chunkText: string,
+        i: number,
+    ): Promise<ChunkResult> {
+        const chunkNumber = i + 1;
+
+        let responseMsg = null;
+        let summary: string | null = null;
+
+        try {
+            const messages = await summaryPrompt.formatMessages({ part: chunkNumber, chunk: chunkText });
+            responseMsg = await chatModel.invoke(messages);
+            summary = typeof responseMsg?.content === "string" ? responseMsg.content : null;
+        } catch (err) {
+            console.error(`Error processing chunk ${chunkNumber}:`, err);
+            summary = null;
+        }
+
+        let images: ImageData[] | undefined = undefined;
+        if (!isDevMode && summary) {
             try {
-                const messages = await summaryPrompt.formatMessages({ part: i + 1, chunk: chunkText });
-                console.log("Messages for chunk", i + 1, messages);
-                const responseMsg = await chatModel.invoke(messages);
-
-                const imagesResponse = await client.images
-                    .generate({
-                        // model: "gpt-image-1",
-                        model: "dall-e-3",
-                        prompt: `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${typeof responseMsg?.content === "string" ? responseMsg.content : ""
-                            }`,
-                        n: 1,
-                        size: "1024x1024",
-                    })
-                    .then((imageRes) => {
-                        const image64 = imageRes?.data && imageRes?.data[0]?.b64_json;
-                        if (!image64) throw new Error("No image generated");
-                        return { data: [{ b64_json: image64, url: undefined }] };
-                    })
-                    .catch((err) => {
-                        console.error("Error generating image:", err);
-                        return { data: [{ url: undefined, b64_json: undefined }] };
-                    });
-
-                const summary = typeof responseMsg?.content === "string" ? responseMsg.content : null;
-                summaries.push({
-                    chunk: i + 1,
-                    summary,
-                    ...(imagesResponse.data?.length
-                        ? {
-                            images: imagesResponse.data
-                                .map((img: { url?: string; b64_json?: string }) => img)
-                                .filter((img: { url?: string; b64_json?: string }) => typeof img.url === "string" || typeof img.b64_json === "string"),
-                        }
-                        : {}),
+                const imageRes = await client.images.generate({
+                    model: "dall-e-3",
+                    prompt:
+                        `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
+                        `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
+                    n: 1,
+                    size: "1024x1024",
                 });
 
-                // Store chunk in LangChain MemoryVectorStore scoped by session
-                const sessionIdRaw = req.fields?.sessionId;
-                const sessionId = Array.isArray(sessionIdRaw) ? sessionIdRaw[0] : sessionIdRaw ?? "";
-                if (sessionId) {
-                    await addTextsToSession(sessionId, [chunkText]);
+                const image64 = imageRes?.data?.[0]?.b64_json;
+                if (typeof image64 === "string" && image64.length > 0) {
+                    images = [{ b64_json: image64, url: undefined }];
+                } else {
+                    console.warn(`No image generated for chunk ${chunkNumber}`);
                 }
-            } catch (error) {
-                console.error(`Error processing chunk ${i + 1}:`, error);
+            } catch (err) {
+                console.error(`Error generating image for chunk ${chunkNumber}:`, err);
             }
-        })
+        }
+
+        try {
+            const cookieHeader = req.headers.cookie || '';
+            const sid = parse(cookieHeader)?.sid;
+            const sessionId = sid || "";
+
+            if (sessionId) {
+                await addTextsToSession(sessionId, [chunkText, summary || ""]);
+            }
+        } catch (err) {
+            console.error(`Error saving to session for chunk ${chunkNumber}:`, err);
+        }
+
+        return {
+            chunk: chunkNumber,
+            summary,
+            ...(images?.length ? { images } : {}),
+        };
+    }
+    const results = await Promise.allSettled(
+        chunks.map((chunkText, i) =>
+            processChunk(chunkText, i)
+        )
     );
+
+    const summaries: ChunkResult[] = new Array(chunks.length);
+    results.forEach((res, i) => {
+        if (res.status === "fulfilled") {
+            summaries[i] = res.value;
+        } else {
+            console.error(`Chunk ${i + 1} failed unexpectedly:`, res.reason);
+            summaries[i] = { chunk: i + 1, summary: null }; // Marcamos el fallo sin romper nada
+        }
+    });
 
     res.json({ summaries });
     next(null);
