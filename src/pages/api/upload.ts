@@ -85,40 +85,35 @@ const summarizeChunksMiddleWare = async (
 
         let responseMsg = null;
         let summary: string | null = null;
+        let images: ImageData[] | undefined = undefined;
 
         try {
             const messages = await summaryPrompt.formatMessages({ part: chunkNumber, chunk: chunkText });
             responseMsg = await chatModel.invoke(messages);
             summary = typeof responseMsg?.content === "string" ? responseMsg.content : null;
-        } catch (err) {
-            console.error(`Error processing chunk ${chunkNumber}:`, err);
-            summary = null;
-        }
 
-        let images: ImageData[] | undefined = undefined;
-        if (!isDevMode && summary) {
-            try {
-                const imageRes = await client.images.generate({
-                    model: "dall-e-3",
-                    prompt:
-                        `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
-                        `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
-                    n: 1,
-                    size: "1024x1024",
-                });
+            if (!isDevMode && summary) {
+                try {
+                    const imageRes = await client.images.generate({
+                        model: "dall-e-3",
+                        prompt:
+                            `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
+                            `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
+                        n: 1,
+                        size: "1024x1024",
+                    });
 
-                const image64 = imageRes?.data?.[0]?.b64_json;
-                if (typeof image64 === "string" && image64.length > 0) {
-                    images = [{ b64_json: image64, url: undefined }];
-                } else {
-                    console.warn(`No image generated for chunk ${chunkNumber}`);
+                    const image64 = imageRes?.data?.[0]?.b64_json;
+                    if (typeof image64 === "string" && image64.length > 0) {
+                        images = [{ b64_json: image64, url: undefined }];
+                    } else {
+                        console.warn(`No image generated for chunk ${chunkNumber}`);
+                    }
+                } catch (err) {
+                    console.error(`Error generating image for chunk ${chunkNumber}:`, err);
                 }
-            } catch (err) {
-                console.error(`Error generating image for chunk ${chunkNumber}:`, err);
             }
-        }
 
-        try {
             const cookieHeader = req.headers.cookie || '';
             const sid = parse(cookieHeader)?.sid;
             const sessionId = sid || "";
@@ -127,7 +122,7 @@ const summarizeChunksMiddleWare = async (
                 await addTextsToSession(sessionId, [chunkText, summary || ""]);
             }
         } catch (err) {
-            console.error(`Error saving to session for chunk ${chunkNumber}:`, err);
+            console.error(`Error processing chunk ${chunkNumber}:`, err);
         }
 
         return {
@@ -148,7 +143,7 @@ const summarizeChunksMiddleWare = async (
             summaries[i] = res.value;
         } else {
             console.error(`Chunk ${i + 1} failed unexpectedly:`, res.reason);
-            summaries[i] = { chunk: i + 1, summary: null }; // Marcamos el fallo sin romper nada
+            summaries[i] = { chunk: i + 1, summary: null };
         }
     });
 
