@@ -58,3 +58,43 @@ export const splitFileContent = async (fileContent: string) => {
     const chunks = await splitter.splitText(fileContent);
     return chunks; // Array of text chunks
 };
+
+
+/**
+ * Extracts text from a file buffer based on its MIME type.
+ * Supports PDF, TXT, and DOCX formats.
+ */
+export async function extractTextFromBuffer(
+    buffer: Buffer,
+    mimetype?: string
+): Promise<string> {
+    if (!buffer) return "";
+
+    // Try to detect mimetype if not provided (basic fallback)
+    if (!mimetype) {
+        // Simple magic number check for PDF
+        if (buffer.slice(0, 4).toString() === "%PDF") {
+            mimetype = "application/pdf";
+        } else if (buffer.slice(0, 2).toString() === "PK") {
+            mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        } else {
+            mimetype = "text/plain";
+        }
+    }
+
+    if (mimetype.includes("pdf")) {
+        const data = await pdf(buffer);
+        return data.text;
+    } else if (
+        mimetype.includes("msword") ||
+        mimetype.includes("officedocument")
+    ) {
+        const result = await mammoth.extractRawText({ buffer });
+        return result.value;
+    } else if (mimetype.includes("text") || mimetype === "text/plain") {
+        return buffer.toString("utf8");
+    }
+
+    // Default fallback
+    return buffer.toString("utf8");
+}

@@ -6,12 +6,14 @@ import { OpenAI } from "openai";
 import formidable from 'formidable'
 
 import { updateSessionContext } from "@/lib/session";
-import { extractFileText, splitFileContent } from "@/lib/text";
+import { extractTextFromBuffer, splitFileContent } from "@/lib/text";
 import { insertEmbedding } from '@/lib/embeddings';
+import { Writable } from "stream";
 
 interface NextApiRequestWithFiles extends NextApiRequest {
     fields?: { sessionId?: string | Array<string> | undefined, extractedText?: string };
     files?: { file?: Array<{ filepath?: string; mimetype?: string, originalFilename?: string }> };
+    fileBuffer?: Buffer;
 };
 
 const AI_MODEL = process.env.AI_MODEL_TURBO || 'gpt-3.5-turbo';
@@ -22,7 +24,22 @@ const client = new OpenAI({
 const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
 
 const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: NextApiResponse, next: (arg0: string | null) => void) => {
-    const form = formidable({ keepExtensions: true });
+    const form = formidable({
+        keepExtensions: true,
+        fileWriteStreamHandler: () => {
+            const chunks: Buffer[] = [];
+            return new Writable({
+                write(chunk, encoding, callback) {
+                    chunks.push(Buffer.from(chunk));
+                    callback();
+                },
+                final(callback) {
+                    (req as NextApiRequestWithFiles).fileBuffer = Buffer.concat(chunks);
+                    callback();
+                },
+            });
+        }
+    });
 
     form.parse(req, async (err: string, fields: formidable.Fields, files: formidable.Files) => {
         if (err) {
@@ -31,8 +48,8 @@ const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: Next
             return;
         }
 
-        const extractedText = await extractFileText(files);
-
+        const fileBuffer = (req as NextApiRequestWithFiles).fileBuffer;
+        const extractedText = fileBuffer && await extractTextFromBuffer(fileBuffer);
 
         (req as NextApiRequestWithFiles).fields = { ...fields, extractedText };
         (req as NextApiRequestWithFiles).files = files;
@@ -177,6 +194,7 @@ const apiRoute = router.handler({
 
 export const config = {
     api: {
+        externalResolver: true,
         bodyParser: false, // Disable Next.js body parsing to use formidable
     },
 };
