@@ -3,12 +3,12 @@ import { createRouter } from "next-connect";
 
 import { OpenAI } from "openai";
 
+import { Writable } from "stream";
 import formidable from 'formidable'
 
 import { updateSessionContext } from "@/lib/session";
 import { extractTextFromBuffer, splitFileContent } from "@/lib/text";
 import { insertEmbedding } from '@/lib/embeddings';
-import { Writable } from "stream";
 
 interface NextApiRequestWithFiles extends NextApiRequest {
     fields?: { sessionId?: string | Array<string> | undefined, extractedText?: string };
@@ -24,9 +24,15 @@ const client = new OpenAI({
 const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
 
 const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: NextApiResponse, next: (arg0: string | null) => void) => {
+    let fileType: string | undefined;
+
     const form = formidable({
         keepExtensions: true,
-        fileWriteStreamHandler: () => {
+        filename: (name, ext, part, form) => {
+            fileType = ext;
+            return part.originalFilename || name;
+        },
+        fileWriteStreamHandler: (file) => {
             const chunks: Buffer[] = [];
             return new Writable({
                 write(chunk, encoding, callback) {
@@ -47,9 +53,8 @@ const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: Next
             next(err);
             return;
         }
-
         const fileBuffer = (req as NextApiRequestWithFiles).fileBuffer;
-        const extractedText = fileBuffer && await extractTextFromBuffer(fileBuffer);
+        const extractedText = fileBuffer && await extractTextFromBuffer(fileBuffer, fileType);
 
         (req as NextApiRequestWithFiles).fields = { ...fields, extractedText };
         (req as NextApiRequestWithFiles).files = files;
