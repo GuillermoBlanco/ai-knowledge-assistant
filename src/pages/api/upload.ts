@@ -145,6 +145,7 @@ const summarizeChunksMiddleWare = async (
             }
         } catch (err) {
             console.error(`Error processing chunk ${chunkNumber}:`, err);
+            return Promise.reject(err);
         }
 
         return {
