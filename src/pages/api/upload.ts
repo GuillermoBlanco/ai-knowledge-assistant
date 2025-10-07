@@ -144,13 +144,13 @@ const summarizeChunksMiddleWare = async (
                 await addTextsToSession(sessionId, [chunkText, summary || ""]);
             }
         } catch (err) {
-            console.error(`Error processing chunk ${chunkNumber}:`, err);
+            console.error(`Error processing chunk ${chunkNumber}:`, err, chunkText);
             return Promise.reject(err);
         }
 
         return {
             chunk: chunkNumber,
-            summary,
+            summary: summary || chunkText,
             ...(images?.length ? { images } : {}),
         };
     }
