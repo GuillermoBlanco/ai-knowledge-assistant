@@ -1,6 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { Protect, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
+
+import { Button } from "@/components/ui/button";
 
 export default function Home() {
+
+  const { isSignedIn } = useUser();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -12,14 +19,29 @@ export default function Home() {
           <p className="text-xl text-center text-gray-600 dark:text-gray-300">
             Upload your documents and get AI-powered analysis, summaries, and answers to your questions.
           </p>
-          <div className="text-center">
-            <Link
-              href="/dashboard"
-              className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Go to Dashboard
-            </Link>
-          </div>
+
+          {!isSignedIn && (
+            <div className="flex justify-center gap-4">
+              <SignUpButton mode="modal">
+                <Button >Sign Up</Button>
+              </SignUpButton>
+
+              <SignInButton mode="modal">
+                <Button variant="outline">Sign In</Button>
+              </SignInButton>
+            </div>
+          )}
+
+          <Protect>
+            <div className="text-center">
+              <Link
+                href="/dashboard"
+                className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Go to Dashboard
+              </Link>
+            </div>
+          </Protect>
         </div>
       </main>
     </div>
