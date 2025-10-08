@@ -1,36 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useState } from "react";
 
 import DocumentUploader from "@/components/DocumentUploader";
 import ChatConversation, { Message } from "@/components/ChatConversation";
 
 export default function DashboardPage() {
     const [messages, setMessages] = useState<Message[]>([]);
-    const [sessionId, setSessionId] = useState<string | null>(null);
 
-    useEffect(() => {
-        const storedSessionId = localStorage.getItem("sessionId");
-
-        if (storedSessionId) {
-            setSessionId(storedSessionId);
-        } else {
-            const newSessionId = uuidv4();
-            localStorage.setItem("sessionId", newSessionId);
-            setSessionId(newSessionId);
-        }
-    }, []);
 
     const handleSendMessage = async (text: string) => {
         const response = await fetch("/api/message", {
             method: "POST",
             body: text,
-            headers: { sessionId: sessionId || "" },
         });
 
         if (!response.ok) {
-            console.error("Failed to upload file");
+            console.error("Failed to send message");
             return;
         }
 
@@ -38,14 +24,8 @@ export default function DashboardPage() {
     };
 
     const handleFileUpload = async (file: File) => {
-        if (!sessionId) {
-            console.error("Session ID is missing.");
-            return;
-        }
-
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("sessionId", sessionId);
 
         setMessages((prev: Message[]) => [
             ...prev,

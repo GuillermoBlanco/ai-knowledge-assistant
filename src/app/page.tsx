@@ -1,10 +1,12 @@
 "use client";
 
-import { Protect, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
+import { Protect, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
+
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
+
   const { isSignedIn } = useUser();
 
   return (
