@@ -1,8 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-// For development purposes, no route is protected. Please ensure to protect necessary routes before deploying to production.
-// const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/forum(.*)'])
-const isProtectedRoute = createRouteMatcher([])
+const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/post(.*)'])
 
 export default clerkMiddleware(async (auth, req) => {
     if (isProtectedRoute(req)) await auth.protect()
