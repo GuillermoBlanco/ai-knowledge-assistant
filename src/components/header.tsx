@@ -1,8 +1,16 @@
+"use client";
+
 import { Button } from '@/components/ui/button'
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
+import { useMemo } from 'react';
+
 
 export function Header() {
+  const { user } = useUser();
+
+  const userImageUrl = useMemo(() => user?.externalAccounts[0]?.imageUrl, [user?.externalAccounts])
+
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b px-4">
       <Link href="/" className="flex items-center gap-x-4">
@@ -24,7 +32,18 @@ export function Header() {
           </SignUpButton>
         </SignedOut>
         <SignedIn>
-          <UserButton />
+          <UserButton appearance={{
+            elements: {
+              avatarBox: {
+                backgroundImage: `url(${userImageUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              },
+              avatarImage: {
+                display: "none",
+              },
+            }
+          }} />
         </SignedIn>
       </div>
     </header>

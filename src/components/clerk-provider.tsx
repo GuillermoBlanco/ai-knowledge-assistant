@@ -1,5 +1,5 @@
 import { ClerkProvider as ClerkNextJSProvider } from '@clerk/nextjs'
-import { shadcn } from '@clerk/themes'
+import { shadcn, dark, neobrutalism } from '@clerk/themes'
 
 type ClerkProviderProps = React.ComponentProps<typeof ClerkNextJSProvider>
 
@@ -7,7 +7,7 @@ export function ClerkProvider({ children, appearance, ...props }: ClerkProviderP
   return (
     <ClerkNextJSProvider
       appearance={{
-        theme: shadcn,
+        theme: neobrutalism,
         ...appearance,
       }}
       {...props}

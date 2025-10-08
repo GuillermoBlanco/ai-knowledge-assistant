@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
+import { Protect, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -30,14 +30,16 @@ export default function Home() {
             </div>
           )}
 
-          <div className="text-center">
-            <Link
-              href="/dashboard"
-              className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Go to Dashboard
-            </Link>
-          </div>
+          <Protect>
+            <div className="text-center">
+              <Link
+                href="/dashboard"
+                className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Go to Dashboard
+              </Link>
+            </div>
+          </Protect>
         </div>
       </main>
     </div>
