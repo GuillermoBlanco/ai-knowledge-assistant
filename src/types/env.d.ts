@@ -8,5 +8,9 @@ declare namespace NodeJS {
         AI_MODEL_MINI: string;
         MODEL_SERVER: string;
         EMBEDDING_MODEL: string;
+        LANGSMITH_TRACING: boolean;
+        LANGSMITH_API_KEY: string;
+        FACEBOOK_API_TOKEN: string;
+        FACEBOOK_PAGE_ID: string;
     }
 }

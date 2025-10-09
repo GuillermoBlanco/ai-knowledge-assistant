@@ -41,6 +41,12 @@ export default function Home() {
                 Go to Dashboard
               </Link>
             </div>
+            <Link
+              href="/post"
+              className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Go to Post creation
+            </Link>
           </Protect>
         </div>
       </main>
