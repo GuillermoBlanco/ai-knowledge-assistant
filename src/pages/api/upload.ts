@@ -3,15 +3,20 @@ import { parse } from 'cookie';
 import { createRouter } from "next-connect";
 import formidable from "formidable";
 import { OpenAI } from "openai";
+
+import { Writable } from "stream";
+
+import { extractTextFromBuffer, splitFileContent } from "@/lib/text";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { extractFileText, splitFileContent } from "@/lib/text";
 import { addTextsToSession } from "@/lib/vectorstore";
 
+
 interface NextApiRequestWithFiles extends NextApiRequest {
-    fields?: { sessionId?: string | Array<string> | undefined; extractedText?: string };
-    files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
-}
+    fields?: { sessionId?: string | Array<string> | undefined, extractedText?: string };
+    files?: { file?: Array<{ filepath?: string; mimetype?: string, originalFilename?: string }> };
+    fileBuffer?: Buffer;
+};
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
@@ -27,12 +32,29 @@ const chatModel = new ChatOpenAI({
 
 const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
 
-const formMiddleWare = (
-    req: NextApiRequest | NextApiRequestWithFiles,
-    res: NextApiResponse,
-    next: (arg0: string | null) => void
-) => {
-    const form = formidable({ keepExtensions: true });
+const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: NextApiResponse, next: (arg0: string | null) => void) => {
+    let fileType: string | undefined;
+
+    const form = formidable({
+        keepExtensions: true,
+        filename: (name, ext, part, form) => {
+            fileType = ext;
+            return part.originalFilename || name;
+        },
+        fileWriteStreamHandler: (file) => {
+            const chunks: Buffer[] = [];
+            return new Writable({
+                write(chunk, encoding, callback) {
+                    chunks.push(Buffer.from(chunk));
+                    callback();
+                },
+                final(callback) {
+                    (req as NextApiRequestWithFiles).fileBuffer = Buffer.concat(chunks);
+                    callback();
+                },
+            });
+        }
+    });
 
     form.parse(req, async (err: string, fields: formidable.Fields, files: formidable.Files) => {
         if (err) {
@@ -40,8 +62,8 @@ const formMiddleWare = (
             next(err);
             return;
         }
-
-        const extractedText = await extractFileText(files);
+        const fileBuffer = (req as NextApiRequestWithFiles).fileBuffer;
+        const extractedText = fileBuffer && await extractTextFromBuffer(fileBuffer, fileType);
 
         (req as NextApiRequestWithFiles).fields = { ...fields, extractedText };
         (req as NextApiRequestWithFiles).files = files;
@@ -122,12 +144,13 @@ const summarizeChunksMiddleWare = async (
                 await addTextsToSession(sessionId, [chunkText, summary || ""]);
             }
         } catch (err) {
-            console.error(`Error processing chunk ${chunkNumber}:`, err);
+            console.error(`Error processing chunk ${chunkNumber}:`, err, chunkText);
+            return Promise.reject(err);
         }
 
         return {
             chunk: chunkNumber,
-            summary,
+            summary: summary || chunkText,
             ...(images?.length ? { images } : {}),
         };
     }
@@ -176,6 +199,7 @@ const apiRoute = router.handler({
 
 export const config = {
     api: {
+        externalResolver: true,
         bodyParser: false, // Disable Next.js body parsing to use formidable
     },
 };
