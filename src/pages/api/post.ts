@@ -1,20 +1,16 @@
 import https from "https";
-
 import { NextApiRequest, NextApiResponse } from "next";
 import { createRouter } from "next-connect";
-
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { RunnableMap, RunnableSequence } from "@langchain/core/runnables";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { WebBrowser } from "langchain/tools/webbrowser";
 
-import { communityManagerPrompt, taskPrompt } from "@/lib/prompts/assistantPrompt";
+import { generatePrompt, promptTemplates, PromptOptions } from "@/lib/prompts/promptTemplates";
+import { sanitizeUrls, sanitizeInput } from "@/lib/utils/urlUtils";
 
 const router = createRouter<NextApiRequest, NextApiResponse>();
-
-const ACCESS_TOKEN = process.env.FACEBOOK_API_TOKEN;
-const FACEBOOK_PAGE_ID = process.env.FACEBOOK_PAGE_ID;
 
 const URLS = [
     // "https://www.eldiario.es",
@@ -26,7 +22,8 @@ const URLS = [
     "https://www.burgosnoticias.com",
 ];
 
-const AI_MODEL = process.env.AI_MODEL_MINI || 'gpt-4o-mini';
+const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
+const AI_MODEL_MINI = process.env.AI_MODEL_MINI || 'gpt-4o-mini';
 const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 
@@ -36,42 +33,57 @@ const model = new ChatOpenAI({
     temperature: 0.2,
     ...isDevMode && { configuration: developmentConfiguration },
 });
+// const modelMini = new ChatOpenAI({
+//     apiKey: process.env.OPENAI_API_KEY,
+//     model: AI_MODEL_MINI,
+//     temperature: 0.2,
+//     ...isDevMode && { configuration: developmentConfiguration },
+// });
 
 const embeddings = new OpenAIEmbeddings({
     ...isDevMode && { configuration: developmentConfiguration },
 });
 
 const browser = new WebBrowser({
-    model, embeddings, axiosConfig: {
+    model: model, embeddings, axiosConfig: {
         httpsAgent: new https.Agent({
             rejectUnauthorized: false
         })
     }
 });
 
-router.get(async (req, res) => {
+router.post(async (req, res) => {
+    const { urls = URLS, language = 'en', ...options }: PromptOptions = req.body;
+    const validUrls = sanitizeUrls(Array.isArray(urls) ? urls : [urls]);
+
+    const sanitizedOptions = {
+        ...options,
+        urls: validUrls,
+        customInstructions: options.customInstructions ? sanitizeInput(options.customInstructions) : ' ',
+    };
+
 
     const fetchPages = RunnableMap.from(
         Object.fromEntries(
-            URLS.map((url, i) => [`page_${i + 1}`, async () => browser.invoke(url)])
+            validUrls.map((url, i) => [`page_${i + 1}`, async () => browser.invoke(url)])
         )
     );
 
     const prompt = ChatPromptTemplate.fromMessages([
         [
             "system",
-            communityManagerPrompt,
+            await generatePrompt(sanitizedOptions)
         ],
         ["human", "{task}"]
     ]);
 
     const summarize = async (pages: { [s: string]: unknown; } | ArrayLike<unknown>) => {
-        const fullSummary = Object.entries(pages)
+        const content = Object.entries(pages)
             .map(([k, v]) => `${k}:\n${v}`)
             .join("\n\n");
 
-        const task = await taskPrompt.format({ fullSummary });
-        const res = await model.invoke(await prompt.format({ task }));
+        const task = await promptTemplates.browserSearch.format({ content, language });
+        const res = await model.invoke(await prompt.format({ ...sanitizedOptions, task }));
         return res.content;
     };
 
@@ -82,27 +94,9 @@ router.get(async (req, res) => {
     ]);
 
     const response = await chain.invoke({});
-
     res.status(200).json(response);
 });
 
-router.post(async (req, res) => {
-    const text = req.body;
-    let response;
-
-    const formData = new FormData();
-    formData.append('message', text);
-    formData.append('formatting', 'MARKDOWN');
-    try {
-        response = await fetch(`https://graph.facebook.com/${FACEBOOK_PAGE_ID}/feed?access_token=${ACCESS_TOKEN}`, {
-            method: "POST",
-            body: formData,
-        });
-    } catch (error) {
-        console.error("Error posting to Facebook:", error);
-    }
-    res.status(200).json(response?.body);
-});
 
 const apiRoute = router.handler({
     onError: (error, req: NextApiRequest, res: NextApiResponse) => {

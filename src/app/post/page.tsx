@@ -1,33 +1,50 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PostGeneratorForm } from "@/components/PostGeneratorForm";
+import { PromptOptions } from "@/lib/prompts/promptTemplates"
 
 export default function PostPage() {
-    const [loading, setLoading] = useState(false);
+    const [generating, setGenerating] = useState(false);
+    const [publishing, setPublishing] = useState(false);
     const [post, setPost] = useState("");
 
-    const handlePostMessage = async (text: string) => {
-        setLoading(true);
+    const handlePostPublish = async (text: string) => {
+        setPublishing(true);
 
-        const response = await fetch("/api/post", {
+        const response = await fetch("/api/post/publish", {
             method: "POST",
-            body: text,
+            body: JSON.stringify({ text, publish: true }),
+            headers: {
+                "Content-Type": "application/json",
+            },
         });
-        setLoading(false);
+        setPublishing(false);
         return await response.json();
     };
 
-    useEffect(() => {
-        setLoading(true);
-        fetch("/api/post", {
-            method: "GET",
+    const handlePostGeneration = async (data: PromptOptions) => {
+        setGenerating(true);
+        const response = await fetch("/api/post", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
         }).then(async res => {
             const post = await res.json()
-            setPost(post);
-            setLoading(false);
+            setGenerating(false);
+            return post;
+        }).catch(err => {
+            console.error("Error:", err);
+            return;
+        }).finally(() => {
+            setGenerating(false);
         });
-    }, []);
+
+        return response;
+    };
 
     return (
         <main className="flex min-h-screen flex-col items-center p-24">
@@ -38,8 +55,20 @@ export default function PostPage() {
                 >
                     {post && post.toString()}
                 </div>
-                <Button disabled={!post || loading} onClick={() => post && handlePostMessage(post.toString())} className="ml-4">
-                    Post to Facebook
+
+                <PostGeneratorForm
+                    onSubmit={async (data) => {
+                        const response = await handlePostGeneration(data);
+                        setPost(response);
+                    }}
+                    isLoading={generating || publishing}
+                />
+                <hr className="my-8" />
+                <h2 className="text-2xl font-bold mb-4">Post to Facebook</h2>
+                <p className="mb-4">Click the button below to post the generated content to your Facebook page.</p>
+                <p className="mb-4 text-sm text-gray-600">Make sure you have set up your Facebook Page ID and Access Token in the environment variables.</p>
+                <Button disabled={!post || publishing} onClick={() => post && handlePostPublish(post.toString())} className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600">
+                    {publishing ? "Publishing..." : "Post to Facebook"}
                 </Button>
             </div>
         </main>
