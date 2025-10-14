@@ -23,22 +23,16 @@ const URLS = [
 ];
 
 const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
-const AI_MODEL_MINI = process.env.AI_MODEL_MINI || 'gpt-4o-mini';
 const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 
 const model = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: AI_MODEL,
-    temperature: 0.2,
+    // temperature: 0.2, // Disabled temperature for deterministic outputs 
     ...isDevMode && { configuration: developmentConfiguration },
 });
-// const modelMini = new ChatOpenAI({
-//     apiKey: process.env.OPENAI_API_KEY,
-//     model: AI_MODEL_MINI,
-//     temperature: 0.2,
-//     ...isDevMode && { configuration: developmentConfiguration },
-// });
+
 
 const embeddings = new OpenAIEmbeddings({
     ...isDevMode && { configuration: developmentConfiguration },
