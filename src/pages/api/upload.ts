@@ -100,6 +100,7 @@ const summarizeChunksMiddleWare = async (
                             `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
                             `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
                         n: 1,
+                        response_format: 'b64_json',
                         size: "1024x1024",
                     });
 
