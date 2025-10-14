@@ -12,10 +12,13 @@ interface NextApiRequestWithFiles extends NextApiRequest {
     fields?: { sessionId?: string | Array<string> | undefined; extractedText?: string };
     files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
 }
+type ImageSize = "auto" | "1024x1024" | "1536x1024" | "1024x1536" | "256x256" | "512x512" | "1792x1024" | "1024x1792";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 const AI_MODEL = process.env.AI_MODEL_MINI || "gpt-4.1-mini";
+const AI_MODEL_IMAGE = process.env.AI_MODEL_IMAGE || "dall-e-2";
+const AI_MODEL_IMAGE_RESOLUTION = (process.env.AI_MODEL_IMAGE_RESOLUTION as ImageSize) || "auto";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const chatModel = new ChatOpenAI({
@@ -67,10 +70,6 @@ const summarizeChunksMiddleWare = async (
 
     const summaryPrompt = ChatPromptTemplate.fromMessages([
         [
-            "system",
-            "Responde exclusivamente en base al documento cargado. Si no está en el documento, responde 'No encontrado en el documento'.",
-        ],
-        [
             "human",
             "Parte {part} del documento:\n\n{chunk}\n\nHaz un resumen en 5 viñetas utilizando emojis para resaltar lo importante.",
         ],
@@ -95,13 +94,13 @@ const summarizeChunksMiddleWare = async (
             if (!isDevMode && summary) {
                 try {
                     const imageRes = await client.images.generate({
-                        model: "dall-e-3",
+                        model: AI_MODEL_IMAGE,
                         prompt:
                             `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
                             `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
                         n: 1,
                         response_format: 'b64_json',
-                        size: "1024x1024",
+                        size: AI_MODEL_IMAGE_RESOLUTION,
                     });
 
                     const image64 = imageRes?.data?.[0]?.b64_json;

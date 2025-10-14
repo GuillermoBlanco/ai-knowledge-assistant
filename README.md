@@ -72,6 +72,8 @@ AI Knowledge Assistant is a modern web application built with **Next.js**, **Tai
     AI_MODEL=gpt-4o
     AI_MODEL_TURBO=gpt-4-turbo
     AI_MODEL_MINI=gpt-4o-mini
+    AI_MODEL_IMAGE=dall-e-2
+    AI_MODEL_IMAGE_RESOLUTION=1024x1024
 
     // Facebook (for news post publishing, optional)
     FACEBOOK_API_TOKEN=your_facebook_api_token
@@ -158,6 +160,9 @@ src/
   - `AI_MODEL` (default: `gpt-4o`)
   - `AI_MODEL_TURBO` (default: `gpt-4-turbo`)
   - `AI_MODEL_MINI` (default: `gpt-4o-mini`)
+  - `AI_MODEL_IMAGE` (default: `dall-e-2`)
+  - `AI_MODEL_IMAGE_RESOLUTION` (default: `1024x1024`)
+  - ...
 - For deployment, set these variables in your cloud provider (e.g., Vercel dashboard)
 
 ---
