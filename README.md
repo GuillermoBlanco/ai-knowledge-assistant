@@ -72,6 +72,7 @@ AI Knowledge Assistant is a modern web application built with **Next.js**, **Tai
     AI_MODEL=gpt-4o
     AI_MODEL_TURBO=gpt-4-turbo
     AI_MODEL_MINI=gpt-4o-mini
+    AI_MODEL_EMBEDDING=gpt-4o-mini
     AI_MODEL_IMAGE=dall-e-2
     AI_MODEL_IMAGE_RESOLUTION=1024x1024
 
@@ -116,6 +117,7 @@ src/
 ├── components/
 │   ├── ChatConversation.tsx    # Chat interface
 │   ├── DocumentUploader.tsx    # Document upload UI
+│   ├── PostGeneratorForm.tsx   # Form to customize post generation on publish
 │   ├── ui/button.tsx           # Reusable button
 │   ├── header.tsx              # Header
 │   ├── theme-provider.tsx      # Theme provider
@@ -125,6 +127,7 @@ src/
 │   ├── vectorstore.ts          # In-memory vector store (LangChain)
 │   ├── prompts/                # Sign up pages
 │   │   ├── assistantPrompt.ts  # The prompts used for the models
+│   │   ├── promptTemplates.ts  # The prompts templates
 ├── pages/api/
 │   ├── message.ts              # Chat API (retrieval QA)
 │   ├── upload.ts               # File upload API

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { PromptOptions, Role, Style, Tone, Language, defaultOptions } from "@/lib/prompts/promptTemplates";
+import { PromptOptions, Role, Style, Tone, Language, defaultOptions, promptOptionValues } from "@/lib/prompts/promptTemplates";
 
 interface PostGeneratorFormProps {
     onSubmit: (data: PromptOptions) => void;
@@ -71,10 +71,11 @@ export function PostGeneratorForm({ onSubmit, isLoading }: PostGeneratorFormProp
                         onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                         className="w-full border border-gray-300 rounded-lg p-2"
                     >
-                        <option value="journalist">Journalist</option>
-                        <option value="editor">Editor</option>
-                        <option value="expert">Expert</option>
-                        <option value="professor">Professor</option>
+                        {Object.values(promptOptionValues.role).map((role) => (
+                            <option key={role} value={role}>
+                                {role.charAt(0).toUpperCase() + role.slice(1)}
+                            </option>
+                        ))}
                     </select>
                 </div>
 
@@ -85,10 +86,11 @@ export function PostGeneratorForm({ onSubmit, isLoading }: PostGeneratorFormProp
                         onChange={(e) => setFormData({ ...formData, tone: e.target.value as Tone })}
                         className="w-full border border-gray-300 rounded-lg p-2"
                     >
-                        <option value="formal">Formal</option>
-                        <option value="casual">Casual</option>
-                        <option value="technical">Technical</option>
-                        <option value="friendly">Friendly</option>
+                        {Object.values(promptOptionValues.tone).map((tone) => (
+                            <option key={tone} value={tone}>
+                                {tone.charAt(0).toUpperCase() + tone.slice(1)}
+                            </option>
+                        ))}
                     </select>
                 </div>
 
@@ -99,8 +101,11 @@ export function PostGeneratorForm({ onSubmit, isLoading }: PostGeneratorFormProp
                         onChange={(e) => setFormData({ ...formData, style: e.target.value as Style })}
                         className="w-full border border-gray-300 rounded-lg p-2"
                     >
-                        <option value="detailed">Detailed</option>
-                        <option value="concise">Concise</option>
+                        {Object.values(promptOptionValues.style).map((style) => (
+                            <option key={style} value={style}>
+                                {style.charAt(0).toUpperCase() + style.slice(1)}
+                            </option>
+                        ))}
                     </select>
                 </div>
 
@@ -111,8 +116,11 @@ export function PostGeneratorForm({ onSubmit, isLoading }: PostGeneratorFormProp
                         onChange={(e) => setFormData({ ...formData, language: e.target.value as Language })}
                         className="w-full border border-gray-300 rounded-lg p-2"
                     >
-                        <option value="es">Spanish</option>
-                        <option value="en">English</option>
+                        {Object.values(promptOptionValues.language).map((lang) => (
+                            <option key={lang} value={lang}>
+                                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                            </option>
+                        ))}
                     </select>
                 </div>
             </div>

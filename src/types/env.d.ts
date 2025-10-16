@@ -6,6 +6,7 @@ declare namespace NodeJS {
         AI_MODEL: string;
         AI_MODEL_TURBO: string;
         AI_MODEL_MINI: string;
+        AI_MODEL_EMBEDDING: string;
         AI_MODEL_IMAGE: string;
         AI_MODEL_IMAGE_RESOLUTION: string;
         MODEL_SERVER: string;

@@ -47,11 +47,12 @@ const browser = new WebBrowser({
 });
 
 router.post(async (req, res) => {
-    const { urls = URLS, language = 'en', ...options }: PromptOptions = req.body;
+    const { urls = URLS, language, ...options }: PromptOptions = req.body;
     const validUrls = sanitizeUrls(Array.isArray(urls) ? urls : [urls]);
 
     const sanitizedOptions = {
         ...options,
+        language,
         urls: validUrls,
         customInstructions: options.customInstructions ? sanitizeInput(options.customInstructions) : ' ',
     };
@@ -76,7 +77,7 @@ router.post(async (req, res) => {
             .map(([k, v]) => `${k}:\n${v}`)
             .join("\n\n");
 
-        const task = await promptTemplates.browserSearch.format({ content, language });
+        const task = await promptTemplates.browserSummary.format({ content, language });
         const res = await model.invoke(await prompt.format({ ...sanitizedOptions, task }));
         return res.content;
     };
