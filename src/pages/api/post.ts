@@ -12,15 +12,7 @@ import { sanitizeUrls, sanitizeInput } from "@/lib/utils/urlUtils";
 
 const router = createRouter<NextApiRequest, NextApiResponse>();
 
-const URLS = [
-    // "https://www.eldiario.es",
-    // "https://www.huffingtonpost.es/news/burgos",
-    "https://www.burgosconecta.es",
-    "https://www.diariodeburgos.es",
-    "https://www.elcorreodeburgos.com",
-    // "https://www.noticiasburgos.com",
-    "https://www.burgosnoticias.com",
-];
+const DEFAULT_SOURCES = process.env.DEFAULT_SOURCES ? process.env.DEFAULT_SOURCES.split(',') : ['www.google.es'];
 
 const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
 const isDevMode = process.env.NODE_ENV !== "production";
@@ -47,7 +39,7 @@ const browser = new WebBrowser({
 });
 
 router.post(async (req, res) => {
-    const { urls = URLS, language, ...options }: PromptOptions = req.body;
+    const { urls = DEFAULT_SOURCES, language, ...options }: PromptOptions = req.body;
     const validUrls = sanitizeUrls(Array.isArray(urls) ? urls : [urls]);
 
     const sanitizedOptions = {

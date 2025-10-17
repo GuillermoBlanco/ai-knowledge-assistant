@@ -76,6 +76,9 @@ AI Knowledge Assistant is a modern web application built with **Next.js**, **Tai
     AI_MODEL_IMAGE=dall-e-2
     AI_MODEL_IMAGE_RESOLUTION=1024x1024
 
+    // URL sources where to look for news/articles
+    DEFAULT_SOURCES=www.google.es,www.google.com
+
     // Facebook (for news post publishing, optional)
     FACEBOOK_API_TOKEN=your_facebook_api_token
     FACEBOOK_PAGE_ID=your_facebook_page_id
