@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -20,6 +20,14 @@ interface ChatConversationProps {
 export default function ChatConversation({ messages, setMessages, sendMessage }: ChatConversationProps) {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    }, [messages]);
 
     const handleSendMessage = async () => {
         if (!input.trim()) return;
@@ -46,8 +54,8 @@ export default function ChatConversation({ messages, setMessages, sendMessage }:
     };
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex flex-col flex-1 min-h-0 border rounded-lg bg-white dark:bg-slate-950">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                 {messages.map((message, index) => {
                     const images = message.images ? message.images.map(({ url, b64_json }, idx) => (
                         url ? <img key={idx} src={url} alt={`Generated ${idx}`} className="mt-2 max-w-full rounded" /> :
@@ -72,13 +80,14 @@ export default function ChatConversation({ messages, setMessages, sendMessage }:
                     )
                 })}
             </div>
-            <div className="p-4 border-t border-gray-300 flex items-center">
+            <div className="p-4 border-t border-gray-300 flex items-center gap-2 flex-shrink-0">
                 <input
                     type="text"
+                    disabled={loading}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Type your message..."
-                    className="flex-1 border border-gray-300 rounded-lg p-2 mr-2"
+                    className="flex-1 border border-gray-300 rounded-lg p-2"
                 />
                 <Button
                     disabled={loading || !input.trim()}

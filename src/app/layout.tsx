@@ -31,10 +31,12 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className="h-full" suppressHydrationWarning>
-        <body className={`${geistSans.variable} ${geistMono.variable} flex min-h-full flex-col antialiased`}>
+        <body className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[auto_1fr] min-h-full antialiased`}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             <Header />
-            {children}
+            <div className="overflow-auto">
+              {children}
+            </div>
           </ThemeProvider>
         </body>
       </html>

@@ -10,7 +10,7 @@ export default function Home() {
   const { isSignedIn } = useUser();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-full flex flex-col">
 
       <main className="flex-1 flex flex-col items-center justify-center p-8">
         <div className="max-w-4xl w-full space-y-8">

@@ -53,8 +53,8 @@ export default function DashboardPage() {
     };
 
     return (
-        <main className="flex min-h-screen flex-col items-center p-24">
-            <div className="max-w-5xl w-full space-y-8">
+        <main className="flex flex-col items-center p-24">
+            <div className="flex flex-col max-w-5xl w-full space-y-8 max-h-[calc(100vh-16rem)]">
                 <h1 className="text-4xl font-bold mb-8">Document Analysis</h1>
                 <DocumentUploader onUpload={handleFileUpload} />
                 <ChatConversation messages={messages} setMessages={setMessages} sendMessage={handleSendMessage} />
