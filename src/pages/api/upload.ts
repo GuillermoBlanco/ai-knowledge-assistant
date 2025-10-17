@@ -2,27 +2,31 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { parse } from 'cookie';
 import { createRouter } from "next-connect";
 import formidable from "formidable";
-import { OpenAI } from "openai";
-import { ChatOpenAI } from "@langchain/openai";
+
+import { ChatOpenAI, DallEAPIWrapper } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+
 import { extractFileText, splitFileContent } from "@/lib/text";
 import { addTextsToSession } from "@/lib/vectorstore";
+import { imagePrompt } from "@/lib/prompts/promptTemplates";
 
 interface NextApiRequestWithFiles extends NextApiRequest {
     fields?: { sessionId?: string | Array<string> | undefined; extractedText?: string };
     files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
 }
+type ImageSize = "1024x1024" | "256x256" | "512x512" | "1792x1024" | "1024x1792";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 const AI_MODEL = process.env.AI_MODEL_MINI || "gpt-4.1-mini";
+const AI_MODEL_IMAGE = process.env.AI_MODEL_IMAGE || "dall-e-2";
+const AI_MODEL_IMAGE_RESOLUTION = (process.env.AI_MODEL_IMAGE_RESOLUTION as ImageSize) || "512x512";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const chatModel = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: AI_MODEL,
     ...isDevMode && { configuration: developmentConfiguration },
-    temperature: 0.2
+    // temperature: 0.2 // Disabled temperature for deterministic outputs
 });
 
 const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
@@ -67,15 +71,10 @@ const summarizeChunksMiddleWare = async (
 
     const summaryPrompt = ChatPromptTemplate.fromMessages([
         [
-            "system",
-            "Responde exclusivamente en base al documento cargado. Si no está en el documento, responde 'No encontrado en el documento'.",
-        ],
-        [
             "human",
             "Parte {part} del documento:\n\n{chunk}\n\nHaz un resumen en 5 viñetas utilizando emojis para resaltar lo importante.",
         ],
     ]);
-
 
     async function processChunk(
         chunkText: string,
@@ -94,16 +93,17 @@ const summarizeChunksMiddleWare = async (
 
             if (!isDevMode && summary) {
                 try {
-                    const imageRes = await client.images.generate({
-                        model: "dall-e-3",
-                        prompt:
-                            `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
-                            `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
+                    const client = new DallEAPIWrapper({
+                        apiKey: process.env.OPENAI_API_KEY,
+                        model: AI_MODEL_IMAGE,
                         n: 1,
-                        size: "1024x1024",
+                        responseFormat: 'b64_json',
+                        size: AI_MODEL_IMAGE_RESOLUTION,
                     });
+                    const prompt = await imagePrompt.format({ summary });
+                    const imageRes = await client.invoke(prompt);
 
-                    const image64 = imageRes?.data?.[0]?.b64_json;
+                    const image64 = imageRes?.data?.[0]?.b64_json || imageRes?.data?.[0]?.image_url || imageRes;
                     if (typeof image64 === "string" && image64.length > 0) {
                         images = [{ b64_json: image64, url: undefined }];
                     } else {

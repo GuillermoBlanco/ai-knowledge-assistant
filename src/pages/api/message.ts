@@ -18,7 +18,7 @@ const router = createRouter<NextApiRequest, NextApiResponse>();
 const model = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: AI_MODEL,
-    temperature: 0.2,
+    // temperature: 0.2, // Disabled temperature for deterministic outputs
     ...isDevMode && { configuration: developmentConfiguration },
 });
 

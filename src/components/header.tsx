@@ -13,7 +13,7 @@ export function Header() {
   const userImageUrl = useMemo(() => user?.externalAccounts[0]?.imageUrl, [user?.externalAccounts])
 
   return (
-    <header className="flex h-16 items-center justify-between gap-4 border-b px-4">
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <Link href="/" className="flex items-center gap-x-4">
         <svg fill="none" viewBox="0 0 44 44" className="size-9" aria-hidden>
           <path

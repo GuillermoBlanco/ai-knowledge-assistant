@@ -12,7 +12,7 @@ function getOrCreateStore(sessionId: string): MemoryVectorStore {
   if (!store) {
     const embeddings = new OpenAIEmbeddings({
       apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5',
+      model: process.env.AI_MODEL_EMBEDDING,
       ...isDevMode && { configuration: developmentConfiguration },
     });
     store = new MemoryVectorStore(embeddings);

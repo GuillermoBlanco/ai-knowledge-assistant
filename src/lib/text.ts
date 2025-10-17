@@ -44,7 +44,11 @@ export const extractFileText = async (files: UploadedFiles): Promise<string> => 
 
 
     // Delete the temporary file
-    fs.unlinkSync(filePath);
+    try {
+        fs.unlinkSync(filePath);
+    } catch (err) {
+        console.warn('Failed to delete temp file:', err);
+    }
 
     return extractedText;
 };
