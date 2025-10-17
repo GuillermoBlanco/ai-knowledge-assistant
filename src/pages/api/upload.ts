@@ -72,7 +72,7 @@ const summarizeChunksMiddleWare = async (
     const summaryPrompt = ChatPromptTemplate.fromMessages([
         [
             "human",
-            "Part {part} of the document:\n\n{chunk}\n\nMake a brief summary. So it could later be used for a complete document summary.",
+            "Part {part} of the document:\n\n{chunk}\n\nMake a brief summary. So it could later be used to be merged in a complete document summary. Don't include 'Summary:' or anything similar at the beginning.",
         ],
     ]);
 
