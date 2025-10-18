@@ -10,7 +10,9 @@ import { extractFileText, splitFileContent } from "@/lib/text";
 import { addTextsToSession } from "@/lib/vectorstore";
 import { imagePrompt } from "@/lib/prompts/promptTemplates";
 
-interface NextApiRequestWithFiles extends NextApiRequest {
+interface NextCustomApiRequest extends NextApiRequest {
+    summaries?: { chunk: number; summary: string | null; images?: { url?: string; b64_json?: string; }[]; }[];
+    images?: { url?: string; b64_json?: string; }[] | undefined;
     fields?: { sessionId?: string | Array<string> | undefined; extractedText?: string };
     files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
 }
@@ -29,10 +31,10 @@ const chatModel = new ChatOpenAI({
     // temperature: 0.2 // Disabled temperature for deterministic outputs
 });
 
-const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
+const router = createRouter<NextCustomApiRequest, NextApiResponse>();
 
 const formMiddleWare = (
-    req: NextApiRequest | NextApiRequestWithFiles,
+    req: NextApiRequest | NextCustomApiRequest,
     res: NextApiResponse,
     next: (arg0: string | null) => void
 ) => {
@@ -47,15 +49,15 @@ const formMiddleWare = (
 
         const extractedText = await extractFileText(files);
 
-        (req as NextApiRequestWithFiles).fields = { ...fields, extractedText };
-        (req as NextApiRequestWithFiles).files = files;
+        (req as NextCustomApiRequest).fields = { ...fields, extractedText };
+        (req as NextCustomApiRequest).files = files;
 
         next(null);
     });
 };
 
 const summarizeChunksMiddleWare = async (
-    req: NextApiRequestWithFiles,
+    req: NextCustomApiRequest,
     res: NextApiResponse,
     next: (arg0: string | null) => void
 ) => {
@@ -98,7 +100,10 @@ const summarizeChunksMiddleWare = async (
                 await addTextsToSession(sessionId, [chunkText, summary || ""]);
             }
         } catch (err) {
-            console.error(`Error processing chunk ${chunkNumber}:`, err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            const chunkError = `Error processing chunk ${chunkNumber}:`;
+            summary = `${chunkError}: ${errorMessage}`;
+            console.error(chunkError, err);
         }
 
         return {
@@ -156,11 +161,16 @@ const summarizeChunksMiddleWare = async (
         ...(images?.length ? { images } : {}),
     });
 
-    res.json({ summaries });
+    // res.json({ summaries });
+
+    // Store summaries in request for next handler
+    (req as NextCustomApiRequest).summaries = summaries;
+    (req as NextCustomApiRequest).images = images;
+
     next(null);
 };
 
-router.post(formMiddleWare, summarizeChunksMiddleWare, (req: NextApiRequestWithFiles, res) => {
+router.post(formMiddleWare, summarizeChunksMiddleWare, (req: NextCustomApiRequest, res) => {
     const file = req.files?.file;
 
     if (!file) {
@@ -169,7 +179,12 @@ router.post(formMiddleWare, summarizeChunksMiddleWare, (req: NextApiRequestWithF
     if (Array.isArray(file) && file.length > 1) {
         return res.status(400).json({ error: "Multiple files uploaded. Please upload a single file." });
     } else if (Array.isArray(file)) {
-        return res.status(200).json({ message: "File uploaded successfully", fileName: file[0].originalFilename });
+        return res.status(200).json({
+            message: "File uploaded successfully",
+            fileName: file[0].originalFilename,
+            summaries: (req as NextCustomApiRequest).summaries,
+            images: (req as NextCustomApiRequest).images
+        });
     }
 });
 
