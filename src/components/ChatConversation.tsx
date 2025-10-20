@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 
@@ -56,29 +57,37 @@ export default function ChatConversation({ messages, setMessages, sendMessage }:
     return (
         <div className="flex flex-col flex-1 min-h-0 border rounded-lg bg-white dark:bg-slate-950">
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-                {messages.map((message, index) => {
-                    const images = message.images ? message.images.map(({ url, b64_json }, idx) => (
-                        url ? <img key={idx} src={url} alt={`Generated ${idx}`} className="mt-2 max-w-full rounded" /> :
-                            <img key={idx} src={`data:image/png;base64,${b64_json}`} alt={`Generated ${idx}`} className="mt-2 max-w-full rounded" />
-                    )) : null;
-
-                    return (
+                {messages.map((message, index) => (
+                    <div
+                        key={index}
+                        className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                    >
                         <div
-                            key={index}
-                            className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                            className={`rounded-lg max-w-md ${message.sender === "user"
+                                ? "bg-blue-500 text-white"
+                                : "bg-gray-200 text-gray-800 dark:bg-slate-800 dark:text-white"
+                                }`}
                         >
-                            <div
-                                className={`p-3 rounded-lg max-w-xs ${message.sender === "user"
-                                    ? "bg-blue-500 text-white"
-                                    : "bg-gray-200 text-gray-800"
-                                    }`}
-                            >
+                            <div className="p-3">
                                 {message.text}
                             </div>
-                            {images && <div className="ml-4">{images}</div>}
+                            {message.images && message.images.length > 0 && (
+                                <div className="flex flex-wrap gap-2 px-3 pb-3">
+                                    {message.images.map(({ url, b64_json }, idx) => (
+                                        <Image
+                                            key={idx}
+                                            src={url || `data:image/png;base64,${b64_json}`}
+                                            alt={`Generated ${idx}`}
+                                            width={300}
+                                            height={300}
+                                            className="max-w-xs rounded-md border border-opacity-30 border-white"
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )
-                })}
+                    </div>
+                ))}
             </div>
             <div className="p-4 border-t border-gray-300 flex items-center gap-2 flex-shrink-0">
                 <input
