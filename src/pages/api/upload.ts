@@ -7,32 +7,38 @@ import { OpenAI } from "openai";
 import { Writable } from "stream";
 
 import { extractTextFromBuffer, splitFileContent } from "@/lib/text";
-import { ChatOpenAI } from "@langchain/openai";
+
+import { ChatOpenAI, DallEAPIWrapper } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+
 import { addTextsToSession } from "@/lib/vectorstore";
+import { imagePrompt } from "@/lib/prompts/promptTemplates";
 
-
-interface NextApiRequestWithFiles extends NextApiRequest {
-    fields?: { sessionId?: string | Array<string> | undefined, extractedText?: string };
-    files?: { file?: Array<{ filepath?: string; mimetype?: string, originalFilename?: string }> };
+interface NextCustomApiRequest extends NextApiRequest {
+    summaries?: { chunk: number; summary: string | null; images?: { url?: string; b64_json?: string; }[]; }[];
+    images?: { url?: string; b64_json?: string; }[] | undefined;
+    fields?: { sessionId?: string | Array<string> | undefined; extractedText?: string };
+    files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
     fileBuffer?: Buffer;
-};
+}
+type ImageSize = "1024x1024" | "256x256" | "512x512" | "1792x1024" | "1024x1792";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 const AI_MODEL = process.env.AI_MODEL_MINI || "gpt-4.1-mini";
+const AI_MODEL_IMAGE = process.env.AI_MODEL_IMAGE || "dall-e-2";
+const AI_MODEL_IMAGE_RESOLUTION = (process.env.AI_MODEL_IMAGE_RESOLUTION as ImageSize) || "512x512";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const chatModel = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: AI_MODEL,
     ...isDevMode && { configuration: developmentConfiguration },
-    temperature: 0.2
+    // temperature: 0.2 // Disabled temperature for deterministic outputs
 });
 
-const router = createRouter<NextApiRequestWithFiles, NextApiResponse>();
+const router = createRouter<NextCustomApiRequest, NextApiResponse>();
 
-const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: NextApiResponse, next: (arg0: string | null) => void) => {
+const formMiddleWare = (req: NextApiRequest | NextCustomApiRequest, res: NextApiResponse, next: (arg0: string | null) => void) => {
     let fileType: string | undefined;
 
     const form = formidable({
@@ -49,7 +55,7 @@ const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: Next
                     callback();
                 },
                 final(callback) {
-                    (req as NextApiRequestWithFiles).fileBuffer = Buffer.concat(chunks);
+                    (req as NextCustomApiRequest).fileBuffer = Buffer.concat(chunks);
                     callback();
                 },
             });
@@ -62,18 +68,18 @@ const formMiddleWare = (req: NextApiRequest | NextApiRequestWithFiles, res: Next
             next(err);
             return;
         }
-        const fileBuffer = (req as NextApiRequestWithFiles).fileBuffer;
+        const fileBuffer = (req as NextCustomApiRequest).fileBuffer;
         const extractedText = fileBuffer && await extractTextFromBuffer(fileBuffer, fileType);
 
-        (req as NextApiRequestWithFiles).fields = { ...fields, extractedText };
-        (req as NextApiRequestWithFiles).files = files;
+        (req as NextCustomApiRequest).fields = { ...fields, extractedText };
+        (req as NextCustomApiRequest).files = files;
 
         next(null);
     });
 };
 
 const summarizeChunksMiddleWare = async (
-    req: NextApiRequestWithFiles,
+    req: NextCustomApiRequest,
     res: NextApiResponse,
     next: (arg0: string | null) => void
 ) => {
@@ -89,15 +95,10 @@ const summarizeChunksMiddleWare = async (
 
     const summaryPrompt = ChatPromptTemplate.fromMessages([
         [
-            "system",
-            "Responde exclusivamente en base al documento cargado. Si no está en el documento, responde 'No encontrado en el documento'.",
-        ],
-        [
             "human",
-            "Parte {part} del documento:\n\n{chunk}\n\nHaz un resumen en 5 viñetas utilizando emojis para resaltar lo importante.",
+            "Part {part} of the document:\n\n{chunk}\n\nMake a brief summary. So it could later be used to be merged in a complete document summary. Don't include 'Summary:' or anything similar at the beginning.",
         ],
     ]);
-
 
     async function processChunk(
         chunkText: string,
@@ -107,34 +108,11 @@ const summarizeChunksMiddleWare = async (
 
         let responseMsg = null;
         let summary: string | null = null;
-        let images: ImageData[] | undefined = undefined;
 
         try {
             const messages = await summaryPrompt.formatMessages({ part: chunkNumber, chunk: chunkText });
             responseMsg = await chatModel.invoke(messages);
             summary = typeof responseMsg?.content === "string" ? responseMsg.content : null;
-
-            if (!isDevMode && summary) {
-                try {
-                    const imageRes = await client.images.generate({
-                        model: "dall-e-3",
-                        prompt:
-                            `Crea una imagen fotográfica representativa de gran detalle de cada una de las viñetas ` +
-                            `para el siguiente resumen del documento, usando un estilo moderno y colores vibrantes: ${summary}`,
-                        n: 1,
-                        size: "1024x1024",
-                    });
-
-                    const image64 = imageRes?.data?.[0]?.b64_json;
-                    if (typeof image64 === "string" && image64.length > 0) {
-                        images = [{ b64_json: image64, url: undefined }];
-                    } else {
-                        console.warn(`No image generated for chunk ${chunkNumber}`);
-                    }
-                } catch (err) {
-                    console.error(`Error generating image for chunk ${chunkNumber}:`, err);
-                }
-            }
 
             const cookieHeader = req.headers.cookie || '';
             const sid = parse(cookieHeader)?.sid;
@@ -144,16 +122,18 @@ const summarizeChunksMiddleWare = async (
                 await addTextsToSession(sessionId, [chunkText, summary || ""]);
             }
         } catch (err) {
-            console.error(`Error processing chunk ${chunkNumber}:`, err, chunkText);
-            return Promise.reject(err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            const chunkError = `Error processing chunk ${chunkNumber}:`;
+            summary = `${chunkError}: ${errorMessage}`;
+            console.error(chunkError, err);
         }
 
         return {
             chunk: chunkNumber,
-            summary: summary || chunkText,
-            ...(images?.length ? { images } : {}),
+            summary,
         };
     }
+
     const results = await Promise.allSettled(
         chunks.map((chunkText, i) =>
             processChunk(chunkText, i)
@@ -161,20 +141,58 @@ const summarizeChunksMiddleWare = async (
     );
 
     const summaries: ChunkResult[] = new Array(chunks.length);
+    let allSummaries = "";
+
     results.forEach((res, i) => {
         if (res.status === "fulfilled") {
             summaries[i] = res.value;
+            allSummaries += res.value.summary || "";
         } else {
             console.error(`Chunk ${i + 1} failed unexpectedly:`, res.reason);
             summaries[i] = { chunk: i + 1, summary: null };
         }
     });
 
-    res.json({ summaries });
+    // Generate images once with combined summaries
+    let images: ImageData[] | undefined = undefined;
+    if (!isDevMode && allSummaries) {
+        try {
+            const client = new DallEAPIWrapper({
+                apiKey: process.env.OPENAI_API_KEY,
+                model: AI_MODEL_IMAGE,
+                n: 1,
+                responseFormat: 'b64_json',
+                size: AI_MODEL_IMAGE_RESOLUTION,
+            });
+            const prompt = await imagePrompt.format({ summary: allSummaries });
+            const imageRes = await client.invoke(prompt);
+
+            const image64 = imageRes?.data?.[0]?.b64_json || imageRes?.data?.[0]?.image_url || imageRes;
+            if (typeof image64 === "string" && image64.length > 0) {
+                images = [{ b64_json: image64, url: undefined }];
+            }
+        } catch (err) {
+            console.error("Error generating image:", err);
+        }
+    }
+
+    // Add summary result with images
+    summaries.push({
+        chunk: summaries.length + 1,
+        summary: null,
+        ...(images?.length ? { images } : {}),
+    });
+
+    // res.json({ summaries });
+
+    // Store summaries in request for next handler
+    (req as NextCustomApiRequest).summaries = summaries;
+    (req as NextCustomApiRequest).images = images;
+
     next(null);
 };
 
-router.post(formMiddleWare, summarizeChunksMiddleWare, (req: NextApiRequestWithFiles, res) => {
+router.post(formMiddleWare, summarizeChunksMiddleWare, (req: NextCustomApiRequest, res) => {
     const file = req.files?.file;
 
     if (!file) {
@@ -183,7 +201,12 @@ router.post(formMiddleWare, summarizeChunksMiddleWare, (req: NextApiRequestWithF
     if (Array.isArray(file) && file.length > 1) {
         return res.status(400).json({ error: "Multiple files uploaded. Please upload a single file." });
     } else if (Array.isArray(file)) {
-        return res.status(200).json({ message: "File uploaded successfully", fileName: file[0].originalFilename });
+        return res.status(200).json({
+            message: "File uploaded successfully",
+            fileName: file[0].originalFilename,
+            summaries: (req as NextCustomApiRequest).summaries,
+            images: (req as NextCustomApiRequest).images
+        });
     }
 });
 
