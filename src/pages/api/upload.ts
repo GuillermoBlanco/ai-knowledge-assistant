@@ -3,10 +3,13 @@ import { parse } from 'cookie';
 import { createRouter } from "next-connect";
 import formidable from "formidable";
 
+import { Writable } from "stream";
+
+import { extractTextFromBuffer, splitFileContent } from "@/lib/text";
+
 import { ChatOpenAI, DallEAPIWrapper } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 
-import { extractFileText, splitFileContent } from "@/lib/text";
 import { addTextsToSession } from "@/lib/vectorstore";
 import { imagePrompt } from "@/lib/prompts/promptTemplates";
 
@@ -15,6 +18,7 @@ interface NextCustomApiRequest extends NextApiRequest {
     images?: { url?: string; b64_json?: string; }[] | undefined;
     fields?: { sessionId?: string | Array<string> | undefined; extractedText?: string };
     files?: { file?: Array<{ filepath?: string; mimetype?: string; originalFilename?: string }> };
+    fileBuffer?: Buffer;
 }
 type ImageSize = "1024x1024" | "256x256" | "512x512" | "1792x1024" | "1024x1792";
 
@@ -33,12 +37,29 @@ const chatModel = new ChatOpenAI({
 
 const router = createRouter<NextCustomApiRequest, NextApiResponse>();
 
-const formMiddleWare = (
-    req: NextApiRequest | NextCustomApiRequest,
-    res: NextApiResponse,
-    next: (arg0: string | null) => void
-) => {
-    const form = formidable({ keepExtensions: true });
+const formMiddleWare = (req: NextApiRequest | NextCustomApiRequest, res: NextApiResponse, next: (arg0: string | null) => void) => {
+    let fileType: string | undefined;
+
+    const form = formidable({
+        keepExtensions: true,
+        filename: (name, ext, part, form) => {
+            fileType = ext;
+            return part.originalFilename || name;
+        },
+        fileWriteStreamHandler: (file) => {
+            const chunks: Buffer[] = [];
+            return new Writable({
+                write(chunk, encoding, callback) {
+                    chunks.push(Buffer.from(chunk));
+                    callback();
+                },
+                final(callback) {
+                    (req as NextCustomApiRequest).fileBuffer = Buffer.concat(chunks);
+                    callback();
+                },
+            });
+        }
+    });
 
     form.parse(req, async (err: string, fields: formidable.Fields, files: formidable.Files) => {
         if (err) {
@@ -46,8 +67,8 @@ const formMiddleWare = (
             next(err);
             return;
         }
-
-        const extractedText = await extractFileText(files);
+        const fileBuffer = (req as NextCustomApiRequest).fileBuffer;
+        const extractedText = fileBuffer && await extractTextFromBuffer(fileBuffer, fileType);
 
         (req as NextCustomApiRequest).fields = { ...fields, extractedText };
         (req as NextCustomApiRequest).files = files;
@@ -200,6 +221,7 @@ const apiRoute = router.handler({
 
 export const config = {
     api: {
+        externalResolver: true,
         bodyParser: false, // Disable Next.js body parsing to use formidable
     },
 };
