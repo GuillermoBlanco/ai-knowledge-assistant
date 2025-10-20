@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { parse } from 'cookie';
 import { createRouter } from "next-connect";
 import formidable from "formidable";
-import { OpenAI } from "openai";
 
 import { Writable } from "stream";
 
