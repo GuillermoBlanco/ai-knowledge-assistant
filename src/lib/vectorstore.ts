@@ -6,6 +6,7 @@ const isDevMode = process.env.NODE_ENV !== "production";
 const developmentConfiguration = { baseURL: process.env.MODEL_SERVER };
 
 const stores = new Map<string, MemoryVectorStore>();
+const storeTimestamps = new Map<string, number>();
 
 function getOrCreateStore(sessionId: string): MemoryVectorStore {
   let store = stores.get(sessionId);
@@ -18,6 +19,7 @@ function getOrCreateStore(sessionId: string): MemoryVectorStore {
     store = new MemoryVectorStore(embeddings);
     stores.set(sessionId, store);
   }
+  storeTimestamps.set(sessionId, Date.now());
   return store;
 }
 
@@ -30,10 +32,29 @@ export async function addTextsToSession(sessionId: string, texts: string[]) {
 export function getSessionRetriever(sessionId: string, k = 4) {
   const store = stores.get(sessionId);
   if (!store) return null;
+  storeTimestamps.set(sessionId, Date.now());
   return store.asRetriever(k);
 }
 
 export function clearSessionStore(sessionId: string) {
   stores.delete(sessionId);
+  storeTimestamps.delete(sessionId);
+}
+
+export function cleanupOldStores(maxAgeMs = 3600000) { // 1 hour
+  const now = Date.now();
+  for (const [sessionId, timestamp] of storeTimestamps.entries()) {
+    if (now - timestamp > maxAgeMs) {
+      stores.delete(sessionId);
+      storeTimestamps.delete(sessionId);
+    }
+  }
+}
+
+// Automatic cleanup every 15 minutes
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    cleanupOldStores();
+  }, 900000); // 15 minutes
 }
 
