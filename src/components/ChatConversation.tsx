@@ -15,7 +15,7 @@ export interface Message {
 interface ChatConversationProps {
     messages: Message[];
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-    sendMessage: (text: string) => Promise<string>;
+    sendMessage: (text: string, onChunk?: (chunk: string) => void) => Promise<string>;
 }
 
 export default function ChatConversation({ messages, setMessages, sendMessage }: ChatConversationProps) {
@@ -35,23 +35,38 @@ export default function ChatConversation({ messages, setMessages, sendMessage }:
         setLoading(true);
 
         const userMessage: Message = { sender: "user", text: input };
-        const loadingMessage: Message = {
+        const streamingMessage: Message = {
             sender: "system",
-            text: "Processing your input...",
-            isTemporary: true,
+            text: "",
+            isTemporary: false,
         };
-        setMessages((prev: Message[]) => [...prev, userMessage, loadingMessage]);
+        setMessages((prev: Message[]) => [...prev, userMessage, streamingMessage]);
         setInput("");
 
-        await sendMessage(input).then((result: string) => {
-            const systemMessage: Message = { sender: "system", text: result };
-            setMessages((prev: Message[]) => [...prev.filter((message) => !message.isTemporary), systemMessage]);
+        try {
+            await sendMessage(input, (chunk: string) => {
+                // Update the streaming message in real-time
+                setMessages((prev: Message[]) => {
+                    const updated = [...prev];
+                    const lastMsg = updated[updated.length - 1];
+                    if (lastMsg.sender === "system") {
+                        lastMsg.text += chunk;
+                    }
+                    return updated;
+                });
+            });
+        } catch {
+            setMessages((prev: Message[]) => {
+                const filtered = prev.slice(0, -1); // Remove the streaming message
+                return [...filtered, { 
+                    sender: "system", 
+                    text: "Failed to get response. Please try again.", 
+                    isTemporary: true 
+                }];
+            });
+        } finally {
             setLoading(false);
-        }).catch(() => {
-            setMessages((prev: Message[]) => [...prev.filter((message) => !message.isTemporary), { sender: "system", text: "Failed to get response. Please try again.", isTemporary: true }]);
-        }).finally(() => setLoading(false)
-        );
-
+        }
     };
 
     return (

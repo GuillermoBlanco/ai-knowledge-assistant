@@ -18,6 +18,7 @@ const router = createRouter<NextApiRequest, NextApiResponse>();
 const model = new ChatOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model: AI_MODEL,
+    streaming: true, // Enable streaming
     // temperature: 0.2, // Disabled temperature for deterministic outputs
     ...isDevMode && { configuration: developmentConfiguration },
 });
@@ -58,14 +59,32 @@ router.post(async (req, res) => {
         new StringOutputParser(),
     ]);
 
-    const systemResponse = await chain.invoke(userMessage);
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-    await addTextsToSession(sessionId, [
-        JSON.stringify({ role: "user", content: userMessage }),
-        JSON.stringify({ role: "system", content: systemResponse })
-    ])
+    try {
+        let fullResponse = '';
+        const stream = await chain.stream(userMessage);
 
-    res.status(200).json(systemResponse);
+        for await (const chunk of stream) {
+            fullResponse += chunk;
+            // Send chunk to client
+            res.write(chunk);
+        }
+
+        // Store the conversation after streaming is complete
+        await addTextsToSession(sessionId, [
+            JSON.stringify({ role: "user", content: userMessage }),
+            JSON.stringify({ role: "system", content: fullResponse })
+        ]);
+
+        res.end();
+    } catch (error) {
+        console.error('Streaming error:', error);
+        res.status(500).end();
+    }
 });
 
 const apiRoute = router.handler({

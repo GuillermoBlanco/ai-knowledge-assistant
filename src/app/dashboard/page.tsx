@@ -9,7 +9,7 @@ export default function DashboardPage() {
     const [messages, setMessages] = useState<Message[]>([]);
 
 
-    const handleSendMessage = async (text: string) => {
+    const handleSendMessage = async (text: string, onChunk?: (chunk: string) => void) => {
         const response = await fetch("/api/message", {
             method: "POST",
             body: text,
@@ -17,10 +17,32 @@ export default function DashboardPage() {
 
         if (!response.ok) {
             console.error("Failed to send message");
-            return;
+            throw new Error("Failed to send message");
         }
 
-        return await response.json();
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = '';
+
+        if (!reader) {
+            throw new Error("No response body");
+        }
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            fullResponse += chunk;
+            
+            // Call the onChunk callback if provided for real-time updates
+            if (onChunk) {
+                onChunk(chunk);
+            }
+        }
+
+        return fullResponse;
     };
 
     const handleFileUpload = async (file: File) => {
